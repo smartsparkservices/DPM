@@ -7,6 +7,7 @@ import Credentials from './pages/Credentials';
 import Facilities from './pages/Facilities';
 import Request from './pages/Request';
 import About from './pages/About';
+import './App.css';
 
 function App() {
   return (
