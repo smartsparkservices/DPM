@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Menu, X } from 'lucide-react';
 
 export default function Layout() {
   const [scrolled, setScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const location = useLocation();
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false); // Close menu on route change
+  }, [location]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -31,7 +36,12 @@ export default function Layout() {
           <Link to="/" className="nav-logo">
             Desert <span>Path</span> Mobility
           </Link>
-          <div className="nav-links">
+          
+          <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+            {isMobileMenuOpen ? <X size={28} /> : <Menu size={28} />}
+          </button>
+
+          <div className={`nav-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
             <Link to="/services">Services</Link>
             <Link to="/credentials">Credentials</Link>
             <Link to="/facilities">For Facilities</Link>
