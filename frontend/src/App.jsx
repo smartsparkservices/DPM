@@ -7,6 +7,7 @@ import Credentials from './pages/Credentials';
 import Facilities from './pages/Facilities';
 import Request from './pages/Request';
 import About from './pages/About';
+import Admin from './pages/Admin';
 import './App.css';
 
 function App() {
@@ -20,6 +21,7 @@ function App() {
           <Route path="facilities" element={<Facilities />} />
           <Route path="request" element={<Request />} />
           <Route path="about" element={<About />} />
+          <Route path="admin" element={<Admin />} />
         </Route>
       </Routes>
     </Router>
