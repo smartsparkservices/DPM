@@ -6,6 +6,7 @@ export default function Admin() {
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('all');
 
   useEffect(() => {
     const fetchRides = async () => {
@@ -49,12 +50,47 @@ export default function Admin() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading rides...</div>;
   if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'red' }}>Error: {error}</div>;
 
+  const displayedRides = activeTab === 'recurring' 
+    ? rides.filter(r => r.recurring && r.recurring.trim() !== '')
+    : rides;
+
   return (
     <div style={{ padding: '40px 20px', maxWidth: 1200, margin: '0 auto' }}>
       <h1 style={{ marginBottom: 24, fontSize: 24 }}>Admin - Ride Requests</h1>
       
-      {rides.length === 0 ? (
-        <p>No ride requests found.</p>
+      <div style={{ marginBottom: 24, display: 'flex', gap: '16px', borderBottom: '1px solid #e9ecef', paddingBottom: '8px' }}>
+        <button 
+          onClick={() => setActiveTab('all')}
+          style={{ 
+            padding: '8px 16px', 
+            background: activeTab === 'all' ? '#004225' : 'transparent',
+            color: activeTab === 'all' ? '#fff' : '#495057',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 600
+          }}
+        >
+          All Rides
+        </button>
+        <button 
+          onClick={() => setActiveTab('recurring')}
+          style={{ 
+            padding: '8px 16px', 
+            background: activeTab === 'recurring' ? '#004225' : 'transparent',
+            color: activeTab === 'recurring' ? '#fff' : '#495057',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontWeight: 600
+          }}
+        >
+          Recurring Rides
+        </button>
+      </div>
+      
+      {displayedRides.length === 0 ? (
+        <p>No ride requests found for this filter.</p>
       ) : (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderRadius: 8 }}>
@@ -64,12 +100,13 @@ export default function Admin() {
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>Pickup</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>Time</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>Priority</th>
+                <th style={{ padding: '12px 16px', fontWeight: 600 }}>Recurring</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>Driver</th>
                 <th style={{ padding: '12px 16px', fontWeight: 600 }}>Status</th>
               </tr>
             </thead>
             <tbody>
-              {rides.map((ride) => (
+              {displayedRides.map((ride) => (
                 <tr key={ride.id} style={{ borderBottom: '1px solid #e9ecef' }}>
                   <td style={{ padding: '12px 16px' }}>{ride.patient_name}</td>
                   <td style={{ padding: '12px 16px' }}>{ride.pickup_address}</td>
@@ -88,6 +125,9 @@ export default function Admin() {
                     }}>
                       {ride.priority || 'Normal'}
                     </span>
+                  </td>
+                  <td style={{ padding: '12px 16px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ride.recurring}>
+                    {ride.recurring ? ride.recurring : '-'}
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <input 
