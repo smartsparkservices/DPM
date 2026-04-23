@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowRight, PhoneCall } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 export default function Request() {
   const [status, setStatus] = useState('idle'); // idle, loading, success, error
   const [errorMessage, setErrorMessage] = useState('');
@@ -25,34 +27,24 @@ export default function Request() {
     const aptTime = form.aptTime.value;
     const appointmentTime = new Date(`${aptDate}T${aptTime}`).toISOString();
 
-    // Combine extra fields into notes
-    const dob = form.dob.value;
-    const altPhone = form.altPhone.value;
-    const reqPickup = form.reqPickup.value;
-    const returnTrip = form.returnTrip.value;
-    const mobility = form.mobility.value;
-    const recurring = form.recurring.value;
-
-    const notes = [
-      `DOB: ${dob}`,
-      altPhone ? `Alt Phone: ${altPhone}` : '',
-      `Req Pickup: ${reqPickup}`,
-      `Return Trip: ${returnTrip}`,
-      `Mobility: ${mobility}`,
-      recurring ? `Recurring: ${recurring}` : ''
-    ].filter(Boolean).join(' | ');
-
     const payload = {
       patient_name: form.patientName.value,
+      date_of_birth: form.dob.value || null,
+      email: form.email.value || null,
       phone: phone,
+      alt_phone: form.altPhone.value || null,
       pickup_address: form.pickup.value,
       dropoff_address: form.destination.value,
       appointment_time: appointmentTime,
-      notes: notes
+      requested_pickup_time: form.reqPickup.value || null,
+      return_trip: form.returnTrip.value === 'Yes',
+      mobility_needs: form.mobility.value,
+      recurring: form.recurring.value || null,
+      notes: null
     };
 
     try {
-      const response = await fetch('/rides', {
+      const response = await fetch(`${API_URL}/rides`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -121,13 +113,18 @@ export default function Request() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                 <div>
+                  <label>Email Address</label>
+                  <input name="email" type="email" placeholder="patient@example.com" />
+                </div>
+                <div>
                   <label>Phone Number *</label>
                   <input name="phone" type="tel" required placeholder="(xxx) xxx-xxxx" />
                 </div>
-                <div>
-                  <label>Alternate / Caregiver Phone</label>
-                  <input name="altPhone" type="tel" placeholder="(xxx) xxx-xxxx" />
-                </div>
+              </div>
+
+              <div>
+                <label>Alternate / Caregiver Phone</label>
+                <input name="altPhone" type="tel" placeholder="(xxx) xxx-xxxx" />
               </div>
 
               <div>

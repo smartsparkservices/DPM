@@ -44,6 +44,25 @@ def notify_admin_new_ride(
     send_email(settings.ADMIN_EMAIL, "New Ride Request", html)
 
 
+def notify_customer_new_ride(
+    to_email: str,
+    patient_name: str,
+    pickup: str,
+    dropoff: str,
+    appointment_time: str,
+) -> None:
+    """Send the customer an email when they submit a new ride request."""
+    html = f"""
+    <h2>Ride Request Received</h2>
+    <p>Hi {patient_name},</p>
+    <p>We have successfully received your ride request for <strong>{appointment_time}</strong>.</p>
+    <p><strong>Pickup:</strong> {pickup}</p>
+    <p><strong>Destination:</strong> {dropoff}</p>
+    <p>We will contact you shortly to confirm your trip. Thank you for choosing Desert Path Mobility Services.</p>
+    """
+    send_email(to_email, "Ride Request Received", html)
+
+
 def notify_customer_ride_scheduled(
     to_email: str,
     appointment_time: str,

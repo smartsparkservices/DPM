@@ -1,5 +1,6 @@
 import uuid
 from typing import Sequence
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy import select
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Ride, RideStatus
 from app.schemas import RideCreate, RideUpdate, RideResponse
-from app.services.email import notify_admin_new_ride, notify_customer_ride_scheduled
+from app.services.email import notify_admin_new_ride, notify_customer_ride_scheduled, notify_customer_new_ride
 
 router = APIRouter(prefix="/rides", tags=["rides"])
 
@@ -20,13 +21,30 @@ def create_ride(
     db: Session = Depends(get_db),
 ):
     """Create a new ride request."""
+    # Ensure appointment time is not in the past
+    # Convert naive to aware UTC if necessary
+    now = datetime.now(timezone.utc)
+    appt_time = payload.appointment_time
+    if appt_time.tzinfo is None:
+        appt_time = appt_time.replace(tzinfo=timezone.utc)
+        
+    if appt_time < now:
+        raise HTTPException(status_code=400, detail="Appointment time cannot be in the past")
+
     ride = Ride(
         patient_name=payload.patient_name,
+        date_of_birth=payload.date_of_birth,
         email=payload.email,
         phone=payload.phone,
+        alt_phone=payload.alt_phone,
         pickup_address=payload.pickup_address,
         dropoff_address=payload.dropoff_address,
         appointment_time=payload.appointment_time,
+        requested_pickup_time=payload.requested_pickup_time,
+        return_trip=payload.return_trip,
+        mobility_needs=payload.mobility_needs,
+        recurring=payload.recurring,
+        priority=payload.priority,
         notes=payload.notes,
     )
     db.add(ride)
@@ -42,13 +60,24 @@ def create_ride(
         appointment_time=ride.appointment_time.strftime("%B %d, %Y at %I:%M %p"),
     )
 
+    # Send customer notification in background if email is provided
+    if ride.email:
+        background_tasks.add_task(
+            notify_customer_new_ride,
+            to_email=ride.email,
+            patient_name=ride.patient_name,
+            pickup=ride.pickup_address,
+            dropoff=ride.dropoff_address,
+            appointment_time=ride.appointment_time.strftime("%B %d, %Y at %I:%M %p"),
+        )
+
     return ride
 
 
 @router.get("", response_model=list[RideResponse])
 def list_rides(db: Session = Depends(get_db)):
-    """Return all rides sorted by newest first."""
-    stmt = select(Ride).order_by(Ride.created_at.desc())
+    """Return all rides sorted by appointment time (ascending)."""
+    stmt = select(Ride).order_by(Ride.appointment_time.asc())
     rides: Sequence[Ride] = db.scalars(stmt).all()
     return rides
 
@@ -60,7 +89,7 @@ def update_ride(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
-    """Update ride status, driver_name, or notes."""
+    """Update ride status, priority, driver_name, or notes."""
     ride = db.get(Ride, ride_id)
     if not ride:
         raise HTTPException(status_code=404, detail="Ride not found")
@@ -68,6 +97,22 @@ def update_ride(
     update_data = payload.model_dump(exclude_unset=True)
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Validate status transitions
+    VALID_TRANSITIONS = {
+        RideStatus.pending: {RideStatus.scheduled, RideStatus.cancelled},
+        RideStatus.scheduled: {RideStatus.completed, RideStatus.cancelled, RideStatus.no_show, RideStatus.pending},
+        RideStatus.completed: set(),
+        RideStatus.cancelled: set(),
+        RideStatus.no_show: set(),
+    }
+    
+    if payload.status and payload.status != ride.status:
+        if payload.status not in VALID_TRANSITIONS.get(ride.status, set()):
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid status transition from {ride.status.value} to {payload.status.value}"
+            )
 
     for field, value in update_data.items():
         setattr(ride, field, value)
