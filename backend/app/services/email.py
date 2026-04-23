@@ -76,3 +76,47 @@ def notify_customer_ride_scheduled(
     <p>Thank you for choosing Desert Path Mobility Services.</p>
     """
     send_email(to_email, "Ride Confirmed", html)
+
+
+def notify_customer_ride_cancelled(
+    to_email: str,
+    appointment_time: str,
+) -> None:
+    """Send the customer an email when their ride is cancelled."""
+    html = f"""
+    <h2>Ride Cancelled</h2>
+    <p>Your ride scheduled for <strong>{appointment_time}</strong> has been cancelled.</p>
+    <p>If you believe this is an error, please contact us at (623) 688-3533.</p>
+    """
+    send_email(to_email, "Ride Cancelled", html)
+
+
+def notify_admin_ride_scheduled(
+    patient_name: str,
+    appointment_time: str,
+    driver_name: str,
+) -> None:
+    """Send the admin an email when a ride is successfully scheduled."""
+    settings = get_settings()
+    html = f"""
+    <h2>Ride Scheduled</h2>
+    <p><strong>Patient:</strong> {patient_name}</p>
+    <p><strong>Time:</strong> {appointment_time}</p>
+    <p><strong>Driver Assigned:</strong> {driver_name or 'TBD'}</p>
+    """
+    send_email(settings.ADMIN_EMAIL, f"Ride Scheduled: {patient_name}", html)
+
+
+def notify_admin_ride_cancelled(
+    patient_name: str,
+    appointment_time: str,
+) -> None:
+    """Send the admin an email when a ride is cancelled."""
+    settings = get_settings()
+    html = f"""
+    <h2>Ride Cancelled</h2>
+    <p><strong>Patient:</strong> {patient_name}</p>
+    <p><strong>Original Time:</strong> {appointment_time}</p>
+    <p>This ride has been marked as cancelled in the system.</p>
+    """
+    send_email(settings.ADMIN_EMAIL, f"Ride Cancelled: {patient_name}", html)

@@ -9,7 +9,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Ride, RideStatus
 from app.schemas import RideCreate, RideUpdate, RideResponse
-from app.services.email import notify_admin_new_ride, notify_customer_ride_scheduled, notify_customer_new_ride
+from app.services.email import (
+    notify_admin_new_ride, 
+    notify_customer_ride_scheduled, 
+    notify_customer_new_ride,
+    notify_admin_ride_scheduled,
+    notify_admin_ride_cancelled,
+    notify_customer_ride_cancelled
+)
 
 router = APIRouter(prefix="/rides", tags=["rides"])
 
@@ -114,19 +121,50 @@ def update_ride(
                 detail=f"Invalid status transition from {ride.status.value} to {payload.status.value}"
             )
 
+    # Capture if status is changing
+    status_changing = payload.status is not None and payload.status != ride.status
+    old_status = ride.status
+
     for field, value in update_data.items():
         setattr(ride, field, value)
 
     db.commit()
     db.refresh(ride)
 
-    # If status just changed to scheduled, notify customer
-    if payload.status == RideStatus.scheduled and ride.email:
-        background_tasks.add_task(
-            notify_customer_ride_scheduled,
-            to_email=ride.email,
-            appointment_time=ride.appointment_time.strftime("%B %d, %Y at %I:%M %p"),
-            driver_name=ride.driver_name or "TBD",
-        )
+    # Handle notifications for status changes
+    if status_changing:
+        formatted_time = ride.appointment_time.strftime("%B %d, %Y at %I:%M %p")
+        
+        if ride.status == RideStatus.scheduled:
+            # Notify admin
+            background_tasks.add_task(
+                notify_admin_ride_scheduled,
+                patient_name=ride.patient_name,
+                appointment_time=formatted_time,
+                driver_name=ride.driver_name
+            )
+            # Notify customer
+            if ride.email:
+                background_tasks.add_task(
+                    notify_customer_ride_scheduled,
+                    to_email=ride.email,
+                    appointment_time=formatted_time,
+                    driver_name=ride.driver_name or "TBD",
+                )
+        
+        elif ride.status == RideStatus.cancelled:
+            # Notify admin
+            background_tasks.add_task(
+                notify_admin_ride_cancelled,
+                patient_name=ride.patient_name,
+                appointment_time=formatted_time,
+            )
+            # Notify customer
+            if ride.email:
+                background_tasks.add_task(
+                    notify_customer_ride_cancelled,
+                    to_email=ride.email,
+                    appointment_time=formatted_time,
+                )
 
     return ride
