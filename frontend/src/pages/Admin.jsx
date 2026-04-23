@@ -7,11 +7,26 @@ export default function Admin() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [adminKey, setAdminKey] = useState(() => sessionStorage.getItem('adminKey'));
+  const [inputValue, setInputValue] = useState('');
 
   useEffect(() => {
     const fetchRides = async () => {
+      if (!adminKey) return;
+      setLoading(true);
+      setError(null);
       try {
-        const response = await fetch(`${API_URL}/rides`);
+        const response = await fetch(`${API_URL}/rides`, {
+          headers: {
+            "Content-Type": "application/json",
+            "x-admin-key": adminKey
+          }
+        });
+        if (response.status === 401) {
+          sessionStorage.removeItem('adminKey');
+          setAdminKey(null);
+          throw new Error('Unauthorized. Please enter the correct Admin Key.');
+        }
         if (!response.ok) throw new Error('Failed to fetch rides');
         const data = await response.json();
         setRides(data);
@@ -23,7 +38,7 @@ export default function Admin() {
     };
 
     fetchRides();
-  }, []);
+  }, [adminKey]);
 
   const handleUpdateRide = async (rideId, updates) => {
     try {
@@ -31,9 +46,16 @@ export default function Admin() {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
+          'x-admin-key': adminKey
         },
         body: JSON.stringify(updates),
       });
+
+      if (response.status === 401) {
+        sessionStorage.removeItem('adminKey');
+        setAdminKey(null);
+        throw new Error('Unauthorized. Please enter the correct Admin Key.');
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -46,6 +68,58 @@ export default function Admin() {
       alert(`Error updating ride: ${err.message}`);
     }
   };
+
+  const handleLoginSubmit = (e) => {
+    e.preventDefault();
+    if (inputValue.trim()) {
+      sessionStorage.setItem('adminKey', inputValue.trim());
+      setAdminKey(inputValue.trim());
+      setInputValue('');
+    }
+  };
+
+  if (!adminKey) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', 
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        background: '#f8f9fa', zIndex: 9999
+      }}>
+        <div style={{
+          background: 'white', padding: '40px', borderRadius: '8px', 
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)', width: '100%', maxWidth: '400px',
+          textAlign: 'center'
+        }}>
+          <h2 style={{ marginBottom: '24px', color: '#333' }}>Admin Access</h2>
+          {error && <div style={{ color: '#d32f2f', background: '#ffebee', padding: '10px', borderRadius: '4px', marginBottom: '16px', fontSize: '14px' }}>{error}</div>}
+          <form onSubmit={handleLoginSubmit}>
+            <input 
+              type="password" 
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              placeholder="Enter Admin Key"
+              style={{
+                width: '100%', padding: '12px', marginBottom: '16px',
+                border: '1px solid #ccc', borderRadius: '4px', fontSize: '16px',
+                boxSizing: 'border-box'
+              }}
+              autoFocus
+            />
+            <button 
+              type="submit"
+              style={{
+                width: '100%', padding: '12px', background: '#004225', color: 'white',
+                border: 'none', borderRadius: '4px', fontSize: '16px', cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              Access Dashboard
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading rides...</div>;
   if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'red' }}>Error: {error}</div>;
