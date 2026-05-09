@@ -1,14 +1,15 @@
 import uuid
-from typing import Sequence
+from typing import Sequence, Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Ride, RideStatus
 from app.schemas import RideCreate, RideUpdate, RideResponse
+from app.config import get_settings, Settings
 from app.services.email import (
     notify_admin_new_ride, 
     notify_customer_ride_scheduled, 
@@ -19,6 +20,11 @@ from app.services.email import (
 )
 
 router = APIRouter(prefix="/rides", tags=["rides"])
+
+
+def verify_admin_key(x_admin_key: Optional[str] = Header(default=None), settings: Settings = Depends(get_settings)):
+    if not x_admin_key or x_admin_key != settings.ADMIN_KEY:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
 @router.post("", response_model=RideResponse, status_code=201)
@@ -81,7 +87,7 @@ def create_ride(
     return ride
 
 
-@router.get("", response_model=list[RideResponse])
+@router.get("", response_model=list[RideResponse], dependencies=[Depends(verify_admin_key)])
 def list_rides(db: Session = Depends(get_db)):
     """Return all rides sorted by appointment time (ascending)."""
     stmt = select(Ride).order_by(Ride.appointment_time.asc())
@@ -89,7 +95,7 @@ def list_rides(db: Session = Depends(get_db)):
     return rides
 
 
-@router.patch("/{ride_id}", response_model=RideResponse)
+@router.patch("/{ride_id}", response_model=RideResponse, dependencies=[Depends(verify_admin_key)])
 def update_ride(
     ride_id: uuid.UUID,
     payload: RideUpdate,

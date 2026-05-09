@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str
     FROM_EMAIL: str
     ADMIN_EMAIL: str
+    ADMIN_KEY: str
 
     class Config:
         env_file = ".env"
