@@ -126,6 +126,14 @@ def update_ride(
                 status_code=400, 
                 detail=f"Invalid status transition from {ride.status.value} to {payload.status.value}"
             )
+            
+        if payload.status == RideStatus.scheduled:
+            final_driver = update_data.get("driver_name", ride.driver_name)
+            if not final_driver or str(final_driver).strip() == "":
+                raise HTTPException(
+                    status_code=400,
+                    detail="A driver must be assigned before scheduling a ride."
+                )
 
     # Capture if status is changing
     status_changing = payload.status is not None and payload.status != ride.status
