@@ -21,9 +21,13 @@ export default function Layout() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    if (location.pathname === '/admin') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
     localStorage.setItem('theme', theme);
-  }, [theme]);
+  }, [theme, location.pathname]);
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -47,22 +51,24 @@ export default function Layout() {
             <Link to="/facilities">For Facilities</Link>
             <Link to="/about">About</Link>
             
-            <button 
-              onClick={toggleTheme} 
-              className="theme-toggle" 
-              aria-label="Toggle Dark Mode"
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: 'var(--muted)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                padding: '8px'
-              }}
-            >
-              {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
-            </button>
+            {location.pathname !== '/admin' && (
+              <button 
+                onClick={toggleTheme} 
+                className="theme-toggle" 
+                aria-label="Toggle Dark Mode"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--muted)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  padding: '8px'
+                }}
+              >
+                {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+              </button>
+            )}
             <Link to="/request" className="btn btn-primary" style={{ padding: '10px 20px', fontSize: '14px' }}>
               Request a Ride
             </Link>
