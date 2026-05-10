@@ -6,6 +6,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 export default function Request() {
   const [status, setStatus] = useState('idle'); // idle, loading, success, error
   const [errorMessage, setErrorMessage] = useState('');
+  const [isRecurring, setIsRecurring] = useState('No');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,7 +40,8 @@ export default function Request() {
       requested_pickup_time: form.reqPickup.value || null,
       return_trip: form.returnTrip.value === 'Yes',
       mobility_needs: form.mobility.value,
-      recurring: form.recurring.value || null,
+      priority: form.priority.value,
+      recurring: isRecurring === 'Yes' ? form.recurringDetails.value : null,
       notes: null
     };
 
@@ -152,7 +154,7 @@ export default function Request() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24 }}>
                 <div>
                   <label>Return Trip Needed?</label>
                   <select name="returnTrip">
@@ -170,11 +172,34 @@ export default function Request() {
                     <option>Uses power wheelchair</option>
                   </select>
                 </div>
+                <div>
+                  <label>Priority</label>
+                  <select name="priority">
+                    <option value="normal">Normal</option>
+                    <option value="low">Low</option>
+                    <option value="urgent">Urgent</option>
+                  </select>
+                </div>
               </div>
 
               <div>
                 <label>Is this a recurring appointment?</label>
-                <input name="recurring" type="text" placeholder="Yes, every Tuesday at 9am (or leave blank if no)" />
+                <select 
+                  value={isRecurring}
+                  onChange={(e) => setIsRecurring(e.target.value)}
+                >
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
+                {isRecurring === 'Yes' && (
+                  <input 
+                    name="recurringDetails" 
+                    type="text" 
+                    placeholder="Please specify the schedule (e.g., Every Tuesday at 9am)" 
+                    required
+                    style={{ marginTop: '12px' }}
+                  />
+                )}
               </div>
 
               <button 

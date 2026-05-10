@@ -9,6 +9,10 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState('all');
   const [adminKey, setAdminKey] = useState(() => sessionStorage.getItem('adminKey'));
   const [inputValue, setInputValue] = useState('');
+  const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [cancelRideId, setCancelRideId] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [expandedRideId, setExpandedRideId] = useState(null);
 
   useEffect(() => {
     const fetchRides = async () => {
@@ -78,6 +82,25 @@ export default function Admin() {
     }
   };
 
+  const handleCancelSubmit = () => {
+    if (cancelRideId) {
+      const rideToCancel = rides.find(r => r.id === cancelRideId);
+      const existingNotes = rideToCancel?.notes || '';
+      const updatedNotes = existingNotes 
+        ? `${existingNotes}\nCancellation Reason: ${cancelReason}` 
+        : `Cancellation Reason: ${cancelReason}`;
+      
+      handleUpdateRide(cancelRideId, { 
+        status: 'cancelled', 
+        notes: updatedNotes 
+      });
+      
+      setCancelModalOpen(false);
+      setCancelRideId(null);
+      setCancelReason('');
+    }
+  };
+
   if (!adminKey) {
     return (
       <div style={{
@@ -124,43 +147,52 @@ export default function Admin() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading rides...</div>;
   if (error) return <div style={{ padding: 40, textAlign: 'center', color: 'red' }}>Error: {error}</div>;
 
-  const displayedRides = activeTab === 'recurring' 
-    ? rides.filter(r => r.recurring && r.recurring.trim() !== '')
-    : rides;
+  const displayedRides = rides.filter(r => {
+    if (activeTab === 'all') return true;
+    if (activeTab === 'recurring') return r.recurring && r.recurring.trim() !== '';
+    return r.status === activeTab;
+  }).sort((a, b) => {
+    if (a.priority === 'urgent' && b.priority !== 'urgent') return -1;
+    if (a.priority !== 'urgent' && b.priority === 'urgent') return 1;
+    
+    if (activeTab === 'scheduled') {
+      return new Date(a.appointment_time) - new Date(b.appointment_time);
+    }
+    
+    return new Date(b.created_at) - new Date(a.created_at);
+  });
 
   return (
     <div style={{ padding: '40px 20px', maxWidth: 1200, margin: '0 auto' }}>
       <h1 style={{ marginBottom: 24, fontSize: 24 }}>Admin - Ride Requests</h1>
       
-      <div style={{ marginBottom: 24, display: 'flex', gap: '16px', borderBottom: '1px solid #e9ecef', paddingBottom: '8px' }}>
-        <button 
-          onClick={() => setActiveTab('all')}
-          style={{ 
-            padding: '8px 16px', 
-            background: activeTab === 'all' ? '#004225' : 'transparent',
-            color: activeTab === 'all' ? '#fff' : '#495057',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: 600
-          }}
-        >
-          All Rides
-        </button>
-        <button 
-          onClick={() => setActiveTab('recurring')}
-          style={{ 
-            padding: '8px 16px', 
-            background: activeTab === 'recurring' ? '#004225' : 'transparent',
-            color: activeTab === 'recurring' ? '#fff' : '#495057',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: 600
-          }}
-        >
-          Recurring Rides
-        </button>
+      <div style={{ marginBottom: 24, display: 'flex', gap: '16px', borderBottom: '1px solid #e9ecef', paddingBottom: '8px', overflowX: 'auto' }}>
+        {[
+          { id: 'all', label: 'All Rides' },
+          { id: 'recurring', label: 'Recurring Rides' },
+          { id: 'pending', label: 'Pending' },
+          { id: 'scheduled', label: 'Scheduled' },
+          { id: 'completed', label: 'Completed' },
+          { id: 'cancelled', label: 'Cancelled' },
+          { id: 'no_show', label: 'No Show' }
+        ].map(tab => (
+          <button 
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{ 
+              padding: '8px 16px', 
+              background: activeTab === tab.id ? '#004225' : 'transparent',
+              color: activeTab === tab.id ? '#fff' : '#495057',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
       
       {displayedRides.length === 0 ? (
@@ -181,64 +213,174 @@ export default function Admin() {
             </thead>
             <tbody>
               {displayedRides.map((ride) => (
-                <tr key={ride.id} style={{ borderBottom: '1px solid #e9ecef' }}>
-                  <td style={{ padding: '12px 16px' }}>{ride.patient_name}</td>
-                  <td style={{ padding: '12px 16px' }}>{ride.pickup_address}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    {new Date(ride.appointment_time).toLocaleString()}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ 
-                      padding: '4px 8px', 
-                      borderRadius: 4, 
-                      fontSize: 12, 
-                      fontWeight: 500,
-                      background: ride.priority === 'urgent' ? '#f8d7da' : (ride.priority === 'low' ? '#d1ecf1' : '#e2e3e5'),
-                      color: ride.priority === 'urgent' ? '#721c24' : (ride.priority === 'low' ? '#0c5460' : '#383d41'),
-                      textTransform: 'capitalize'
-                    }}>
-                      {ride.priority || 'Normal'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ride.recurring}>
-                    {ride.recurring ? ride.recurring : '-'}
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <input 
-                      type="text" 
-                      defaultValue={ride.driver_name || ''} 
-                      placeholder="Assign driver..."
-                      onBlur={(e) => {
-                        const newDriver = e.target.value.trim() || null;
-                        if (newDriver !== ride.driver_name) {
-                          handleUpdateRide(ride.id, { driver_name: newDriver });
-                        }
-                      }}
-                      style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ced4da', width: '100%' }}
-                    />
-                  </td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <select
-                      value={ride.status}
-                      onChange={(e) => handleUpdateRide(ride.id, { status: e.target.value })}
-                      style={{
-                        padding: '6px',
-                        borderRadius: '4px',
-                        border: '1px solid #ced4da',
-                        background: '#fff'
-                      }}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="scheduled">Scheduled</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                      <option value="no_show">No Show</option>
-                    </select>
-                  </td>
-                </tr>
+                <React.Fragment key={ride.id}>
+                  <tr 
+                    style={{ 
+                      borderBottom: '1px solid #e9ecef', 
+                      cursor: 'pointer',
+                      background: expandedRideId === ride.id ? '#f8f9fa' : 'white'
+                    }}
+                    onClick={() => {
+                      setExpandedRideId(expandedRideId === ride.id ? null : ride.id);
+                    }}
+                  >
+                    <td style={{ padding: '12px 16px' }}>{ride.patient_name}</td>
+                    <td style={{ padding: '12px 16px' }}>{ride.pickup_address}</td>
+                    <td style={{ padding: '12px 16px' }}>
+                      {new Date(ride.appointment_time).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <span style={{ 
+                        padding: '4px 8px', 
+                        borderRadius: 4, 
+                        fontSize: 12, 
+                        fontWeight: 500,
+                        background: ride.priority === 'urgent' ? '#f8d7da' : (ride.priority === 'low' ? '#d1ecf1' : '#e2e3e5'),
+                        color: ride.priority === 'urgent' ? '#721c24' : (ride.priority === 'low' ? '#0c5460' : '#383d41'),
+                        textTransform: 'capitalize'
+                      }}>
+                        {ride.priority || 'Normal'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 16px', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={ride.recurring}>
+                      {ride.recurring ? ride.recurring : '-'}
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <input 
+                        type="text" 
+                        defaultValue={ride.driver_name || ''} 
+                        placeholder="Assign driver..."
+                        onClick={(e) => e.stopPropagation()}
+                        onBlur={(e) => {
+                          const newDriver = e.target.value.trim() || null;
+                          if (newDriver !== ride.driver_name) {
+                            handleUpdateRide(ride.id, { driver_name: newDriver });
+                          }
+                        }}
+                        style={{ padding: '6px', borderRadius: '4px', border: '1px solid #ced4da', width: '100%' }}
+                      />
+                    </td>
+                    <td style={{ padding: '12px 16px' }}>
+                      <select
+                        value={ride.status}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          
+                          if (newStatus === 'scheduled' && (!ride.driver_name || ride.driver_name.trim() === '')) {
+                            alert('You must assign a driver before scheduling this ride.');
+                            e.target.value = ride.status; // Reset the dropdown visually
+                            return;
+                          }
+                          
+                          if (newStatus === 'cancelled') {
+                            setCancelRideId(ride.id);
+                            setCancelReason('');
+                            setCancelModalOpen(true);
+                          } else {
+                            handleUpdateRide(ride.id, { status: newStatus });
+                          }
+                        }}
+                        style={{
+                          padding: '6px',
+                          borderRadius: '4px',
+                          border: '1px solid #ced4da',
+                          background: '#fff'
+                        }}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                        <option value="no_show">No Show</option>
+                      </select>
+                    </td>
+                  </tr>
+                  {expandedRideId === ride.id && (
+                    <tr style={{ background: '#f9fafb', borderBottom: '2px solid #e9ecef' }}>
+                      <td colSpan="7" style={{ padding: '20px 24px', borderLeft: ride.status === 'cancelled' ? '4px solid #d32f2f' : '4px solid #004225' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', fontSize: '14px', color: '#333', lineHeight: '1.6' }}>
+                          <div>
+                            <div style={{ marginBottom: '8px' }}><strong>Destination:</strong> {ride.dropoff_address || 'N/A'}</div>
+                            <div style={{ marginBottom: '8px' }}><strong>Phone:</strong> <a href={`tel:${ride.phone}`} style={{ color: '#004225', textDecoration: 'none' }}>{ride.phone || 'N/A'}</a></div>
+                            <div style={{ marginBottom: '8px' }}><strong>Alt Phone:</strong> {ride.alt_phone ? <a href={`tel:${ride.alt_phone}`} style={{ color: '#004225', textDecoration: 'none' }}>{ride.alt_phone}</a> : 'N/A'}</div>
+                            <div style={{ marginBottom: '8px' }}><strong>Email:</strong> {ride.email ? <a href={`mailto:${ride.email}`} style={{ color: '#004225', textDecoration: 'none' }}>{ride.email}</a> : 'N/A'}</div>
+                            <div><strong>Date of Birth:</strong> {ride.date_of_birth || 'N/A'}</div>
+                          </div>
+                          <div>
+                            <div style={{ marginBottom: '8px' }}><strong>Requested Pickup Time:</strong> {ride.requested_pickup_time || 'N/A'}</div>
+                            <div style={{ marginBottom: '8px' }}><strong>Return Trip:</strong> {ride.return_trip ? 'Yes' : 'No'}</div>
+                            <div style={{ marginBottom: '16px' }}><strong>Mobility Needs:</strong> {ride.mobility_needs || 'None'}</div>
+                            <div>
+                              <strong style={{ color: ride.status === 'cancelled' ? '#d32f2f' : '#004225' }}>
+                                {ride.status === 'cancelled' ? 'Cancellation Reason / Notes:' : 'Notes:'}
+                              </strong>
+                              <div style={{ whiteSpace: 'pre-wrap', color: '#555', marginTop: '4px', background: '#fff', padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}>
+                                {ride.notes ? ride.notes : <em>No additional notes provided.</em>}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {cancelModalOpen && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.5)', zIndex: 9999
+        }}>
+          <div style={{
+            background: 'white', padding: '24px', borderRadius: '8px',
+            width: '100%', maxWidth: '400px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          }}>
+            <h3 style={{ marginTop: 0, marginBottom: '16px' }}>Cancel Request</h3>
+            <p style={{ marginBottom: '12px', fontSize: '14px', color: '#555' }}>
+              Please provide a reason for cancellation. This will be added to the notes.
+            </p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Cancellation reason..."
+              style={{
+                width: '100%', padding: '8px', minHeight: '80px',
+                border: '1px solid #ccc', borderRadius: '4px', marginBottom: '16px',
+                boxSizing: 'border-box'
+              }}
+              autoFocus
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={() => {
+                  setCancelModalOpen(false);
+                  setCancelRideId(null);
+                }}
+                style={{
+                  padding: '8px 16px', border: '1px solid #ccc', background: 'transparent',
+                  borderRadius: '4px', cursor: 'pointer'
+                }}
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleCancelSubmit}
+                disabled={!cancelReason.trim()}
+                style={{
+                  padding: '8px 16px', border: 'none', background: cancelReason.trim() ? '#d32f2f' : '#ccc', color: 'white',
+                  borderRadius: '4px', cursor: cancelReason.trim() ? 'pointer' : 'not-allowed', fontWeight: 'bold'
+                }}
+              >
+                Confirm Cancel
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
